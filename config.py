@@ -21,25 +21,31 @@ elif data_name == "hand5c":
     classes = ('0', 'close-back', 'close-front', 'open-back', 'open-front')
 
 # solver
-device_ids = [3]
+device_ids = [2]
 batch_size = 64
-epoch = 150
+epoch = 100
+optim = "sgd"
 lr_gamma = 0.5  # 衰减比率
-lr_step_size = 25  # 多少 epoch 衰减一次
-lr = 1e-2
+lr_step_size = 20  # 多少 epoch 衰减一次
+lr = 1e-4
 momentum = 0.9
 weight_decay = 5e-4
 num_workers = 8
+use_amp = False
 
 # model info
-model = "RepVGG-C0"
+model = "resnet10"
 pretrained = None
 save_checkpoint = 'checkpoint'
-resume = None
+resume = "checkpoint/resnet10_hand14c_128x128_91.429.pth"
 
 # knowledge distill
-# teacher = None
-teacher = "RepVGG-A2"
-teacker_ckpt = "checkpoint/RepVGG-A2_hand14c_128x128_95.143.pth"
-alpha = 0.9
+teacher = None
+teacker_ckpt = "checkpoint/resnet18_hand14c_128x128_93.429.pth"
+alpha = 0.9  # 当 alpha 为0时, 意味着不使用 output 进行蒸馏
 temperature = 6
+dis_feature = {
+    'layer1': (0, 'bn2'), 
+    'layer2': (0, 'bn2'), 
+    'layer3': (0, 'bn2'),
+}

@@ -1,15 +1,25 @@
+import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
 
-def KLDivLoss(outputs, labels, teacher_outputs, alpha, T):
-    """
-    Compute the knowledge-distillation (KD) loss given outputs, labels.
-    "Hyperparameters": temperature and alpha
+class KLDivLoss():
+    def __init__(self, alpha, T):
+        super(KLDivLoss).__init__()
+        self.alpha = alpha
+        self.T = T
+        self.KDLoss = nn.KLDivLoss()
 
-    NOTE: the KL Divergence for PyTorch comparing the softmaxs of teacher
-    and student expects the input tensor to be log probabilities! See Issue #2
-    """
-    KD_loss = nn.KLDivLoss()(F.log_softmax(outputs/T, dim=1), F.softmax(teacher_outputs/T, dim=1)) * (alpha * T * T) + F.cross_entropy(outputs, labels) * (1. - alpha)
+    def __call__(self, outputs, t_outputs, labels):
+        return self.KDLoss(F.log_softmax(outputs / self.T, dim=1), F.softmax(t_outputs / self.T, dim=1)) * (self.alpha * self.T * self.T) + F.cross_entropy(outputs, labels) * (1. - self.alpha)
 
-    return KD_loss
+
+class DistillFeatureMSELoss():
+    def __init__(self, reduction="mean", num_df=3, alpha=10.):
+        super(DistillFeatureMSELoss).__init__()
+        self.criterion = [nn.MSELoss(reduction=reduction)] * num_df
+        self.alpha = alpha
+
+    def __call__(self, s_out, t_out):
+        fs_loss = [loss_fn(s_out[i], t_out[i]) for i, loss_fn in enumerate(self.criterion)]
+        return torch.sum(torch.cuda.FloatTensor(fs_loss) if s_out[0].is_cuda else torch.Tensor(fs_loss)) * self.alpha

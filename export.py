@@ -4,29 +4,12 @@ from __future__ import division
 import os
 import torch
 import collections
-from models.resnet import resnet10, resnet18, resnet34, resnet50
-from models.mobilenetv3 import mobilenet_v3_small
-from models.repvgg import get_RepVGG_func_by_name, repvgg_model_convert
+from models.get_network import build_network_by_name, repvgg_model_convert
 import config as cfg
 
 
 def main():
-    if cfg.model == "resnet10":
-        model = resnet10(pretrained=None, num_classes=len(cfg.classes))
-    elif cfg.model == "resnet18":
-        model = resnet18(pretrained=None, num_classes=len(cfg.classes))
-    elif cfg.model == "resnet34":
-        model = resnet34(pretrained=None, num_classes=len(cfg.classes))
-    elif cfg.model == "resnet50":
-        model = resnet50(pretrained=None, num_classes=len(cfg.classes))
-    elif cfg.model == "mobilenetv3_small":
-        model = mobilenet_v3_small(pretrained=None, num_classes=len(cfg.classes))
-    elif cfg.model.split("-")[0] == "RepVGG":
-        repvgg_build_func = get_RepVGG_func_by_name(cfg.model)
-        model = repvgg_build_func(num_classes=len(cfg.classes), pretrained_path=cfg.pretrained, deploy=False)
-
-    else:
-        raise Exception("暂未支持, 请在此处手动添加")
+    model = build_network_by_name(cfg.model, None, num_classes=len(cfg.classes))
 
     model_path = "checkpoint/best_%s_%s_%dx%d.pth" % (cfg.model, cfg.data_name, cfg.input_size[0], cfg.input_size[1])
     model_info = torch.load(model_path)
@@ -37,11 +20,10 @@ def main():
     if cfg.model.split("-")[0] == "RepVGG":
         # convert to inference module
         model = repvgg_model_convert(model, save_path=output + ".pth")
-        print(model)
 
     model.eval()
 
-    dummy_input1 = torch.randn(1, 3, 128, 128)
+    dummy_input1 = torch.randn(1, 3, cfg.input_size[0], cfg.input_size[1])
     # convert to onnx
     print("convert to onnx......")
     input_names = [ "input"]

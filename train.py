@@ -11,13 +11,11 @@ import torchvision.transforms as T
 import argparse
 from data.dataset import ImageDataSet
 from data.transform import data_transform
-from models.resnet import resnet10, resnet18, resnet34, resnet50
-from models.repvgg import get_RepVGG_func_by_name
-from models.mobilenetv3 import mobilenet_v3_small
-from utils import progress_bar
+from models.get_network import build_network_by_name
+from tools.utils import progress_bar
+from tools.distill import DistillForFeatures
 from loss.amsoftmax import AMSoftmax
-from loss.distill import KLDivLoss
-
+from loss.distill import DistillFeatureMSELoss, KLDivLoss
 import warnings
 warnings.filterwarnings("ignore", category=UserWarning)
 
@@ -47,39 +45,17 @@ testloader = torch.utils.data.DataLoader(testset, batch_size=cfg.batch_size, shu
 
 # Model
 print('==> Building model..')
-if cfg.model == "resnet10":
-    net = resnet10(pretrained=cfg.pretrained, num_classes=len(classes))
-elif cfg.model == "resnet18":
-    net = resnet18(pretrained=cfg.pretrained, num_classes=len(classes))
-elif cfg.model == "resnet34":
-    net = resnet34(pretrained=cfg.pretrained, num_classes=len(classes))
-elif cfg.model == "resnet50":
-    net = resnet50(pretrained=cfg.pretrained, num_classes=len(classes))
-elif cfg.model == "mobilenetv3_small":
-    net = mobilenet_v3_small(pretrained=cfg.pretrained, num_classes=len(classes))
-elif cfg.model.split("-")[0] == "RepVGG":
-    repvgg_build_func = get_RepVGG_func_by_name(cfg.model)
-    net = repvgg_build_func(num_classes=len(classes), pretrained_path=cfg.pretrained, deploy=False)
-else:
-    raise Exception("暂未支持, 请在此处手动添加")
+net = build_network_by_name(cfg.model, cfg.pretrained, len(cfg.classes), deploy=False)
 
 net = net.to(device)
 if device == 'cuda' and len(cfg.device_ids) > 1:
     net = torch.nn.DataParallel(net, device_ids=range(len(cfg.device_ids)))
     cudnn.benchmark = True
 
+# Knowledge Distillation 
 if cfg.teacher:
-    if cfg.teacher == "resnet18":
-        t_net = resnet18(pretrained=None, num_classes=len(classes))
-    elif cfg.teacher == "resnet34":
-        t_net = resnet34(pretrained=None, num_classes=len(classes))
-    elif cfg.teacher == "resnet50":
-        t_net = resnet50(pretrained=None, num_classes=len(classes))
-    elif cfg.teacher.split("-")[0] == "RepVGG":
-        repvgg_build_func = get_RepVGG_func_by_name(cfg.teacher)
-        t_net = repvgg_build_func(num_classes=len(classes), pretrained_path=None, deploy=True)
-    else:
-        raise Exception("暂未支持%s teacher, 请在此处手动添加" % cfg.teacher)
+    print('==> Building teacher model..')
+    t_net = build_network_by_name(cfg.teacher, None, len(cfg.classes), deploy=True)
 else:
     t_net = None
 
@@ -90,16 +66,30 @@ if t_net:
     t_net = t_net.to(device)
 
 if t_net:
-    criterion = KLDivLoss
+    criterion = KLDivLoss(cfg.alpha, cfg.temperature)
+    if cfg.dis_feature:
+        # 使用中间输出层进行蒸馏
+        f_distill = DistillForFeatures(cfg.dis_feature, net, t_net)
+        fs_criterion = DistillFeatureMSELoss(reduction="mean", num_df=len(cfg.dis_feature))
 else:
     criterion = nn.CrossEntropyLoss()
     # criterion = AMSoftmax()
 
-optimizer = optim.SGD(
-                    filter(lambda p: p.requires_grad, net.parameters()), 
-                    lr=cfg.lr, 
-                    momentum=cfg.momentum, 
-                    weight_decay=cfg.weight_decay)
+if cfg.optim == "sgd":
+    optimizer = optim.SGD(
+                        filter(lambda p: p.requires_grad, net.parameters()), 
+                        lr=cfg.lr, 
+                        momentum=cfg.momentum, 
+                        weight_decay=cfg.weight_decay)
+elif cfg.optim == "adam":
+    optimizer = torch.optim.Adam(
+                        filter(lambda p: p.requires_grad, net.parameters()), 
+                        lr=cfg.lr, 
+                        betas=(0.9, 0.99), 
+                        weight_decay=cfg.weight_decay)
+else:
+    raise Exception("暂未支持%s optimizer, 请在此处手动添加" % cfg.optim)
+
 
 lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=cfg.lr_step_size, gamma=cfg.lr_gamma)
 
@@ -110,8 +100,8 @@ if cfg.resume:
     checkpoint = torch.load(cfg.resume)
     net.load_state_dict(checkpoint['net'])
     best_acc = checkpoint['acc']
-    start_epoch = checkpoint['epoch']
-    lr_scheduler = checkpoint['lr_scheduler']
+    # start_epoch = checkpoint['epoch']
+    # lr_scheduler = checkpoint['lr_scheduler']
 
 # Training
 def train(epoch):
@@ -120,18 +110,43 @@ def train(epoch):
     train_loss = 0
     correct = 0
     total = 0
+
+    if t_net and cfg.dis_feature:
+        hooks = f_distill.get_hooks()
+
+    # 自动混合精度
+    scaler = torch.cuda.amp.GradScaler()
     for batch_idx, (inputs, targets, _) in enumerate(trainloader):
         inputs, targets = inputs.to(device), targets.to(device)
         optimizer.zero_grad()
-        outputs = net(inputs)
-        if t_net:
-            with torch.no_grad():
-                teacher_outputs = t_net(inputs)
-            loss = criterion(outputs, targets, teacher_outputs, cfg.alpha, cfg.temperature)
-        else:
-            loss = criterion(outputs, targets)
-        loss.backward()
-        optimizer.step()
+
+        with torch.cuda.amp.autocast():  # 自动混合精度 (pytorch1.6之后)
+            outputs = net(inputs)
+            if t_net:
+                loss = torch.cuda.FloatTensor([0]) if outputs.is_cuda else torch.Tensor([0])
+                with torch.no_grad():
+                    teacher_outputs = t_net(inputs)
+                if cfg.dis_feature:
+                    t_out = []
+                    s_out = []
+                    for k, v in f_distill.activation.items():
+                        g, k, n = k.split("_")
+                        # 一一配对feature, 进行loss 计算
+                        if g == "s":
+                            s_out.append(v)
+                        else:
+                            t_out.append(v)
+                    # 选定的 feature 分别计算loss
+                    fs_loss = fs_criterion(s_out, t_out)
+                    loss += fs_loss
+                loss += criterion(outputs, teacher_outputs, targets)
+            else:
+                loss = criterion(outputs, targets)
+        
+            # Scales loss. 放大梯度.
+            scaler.scale(loss).backward()
+            scaler.step(optimizer)
+            scaler.update()
 
         train_loss += loss.item()
         _, predicted = outputs.max(1)
@@ -140,6 +155,10 @@ def train(epoch):
 
         progress_bar(batch_idx, len(trainloader), 'Loss: %.3f | Acc: %.3f%% (%d/%d)'
             % (train_loss/(batch_idx+1), 100.*correct/total, correct, total))
+
+    if t_net and cfg.dis_feature:
+        for hook in hooks:
+            hook.remove()
 
 
 def test(epoch):
@@ -156,7 +175,7 @@ def test(epoch):
             if t_net:
                 with torch.no_grad():
                     teacher_outputs = t_net(inputs)
-                loss = criterion(outputs, targets, teacher_outputs, cfg.alpha, cfg.temperature)
+                loss = criterion(outputs, teacher_outputs, targets)
             else:
                 loss = criterion(outputs, targets)
 
