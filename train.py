@@ -197,11 +197,10 @@ def test(epoch):
             'epoch': epoch,
             'lr_scheduler': lr_scheduler,
         }
-        if not os.path.isdir('checkpoint'):
-            os.mkdir('checkpoint')
+        if not os.path.exists(cfg.save_checkpoint):
+            os.makedirs(cfg.save_checkpoint)
         torch.save(state, os.path.join(cfg.save_checkpoint, "best_%s_%s_%dx%d.pth" % (cfg.model, cfg.data_name, cfg.input_size[0], cfg.input_size[1])))
         best_acc = acc
-
 
 for epoch in range(start_epoch, start_epoch + cfg.epoch):
     train(epoch)

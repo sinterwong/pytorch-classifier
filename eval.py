@@ -1,7 +1,6 @@
 import torch
-from utils import progress_bar
-from models.resnet import resnet18
-from models.repvgg import get_RepVGG_func_by_name
+from tools.utils import progress_bar
+from models.get_network import build_network_by_name
 import config as cfg
 from data.transform import data_transform
 from data.dataset import ImageDataSet
@@ -11,7 +10,7 @@ import shutil
 import os
 
 
-def test(model_path, val_path, device='cuda', out_err="data/error"):
+def test(model_name, model_path, val_path, device='cuda', out_err="data/error"):
     # class map
     class_dict = {v: k for k, v in dict(enumerate(cfg.classes)).items()}
     idx2classes = dict(enumerate(cfg.classes))
@@ -21,12 +20,7 @@ def test(model_path, val_path, device='cuda', out_err="data/error"):
     testset = ImageDataSet(root=cfg.val_root, classes_dict=class_dict, transform=transform_test, is_train=False)
     testloader = torch.utils.data.DataLoader(testset, batch_size=cfg.batch_size, shuffle=False, num_workers=4)
 
-    # loading model
-    # model_info = torch.load(model_path)
-    # net = resnet18(pretrained=False, num_classes=len(cfg.classes))
-    # net.load_state_dict(model_info["net"])
-    repvgg_build_func = get_RepVGG_func_by_name("RepVGG-A0")
-    net = repvgg_build_func(num_classes=len(cfg.classes), pretrained_path=None, deploy=False)
+    net = build_network_by_name(model_name, None, num_classes=len(cfg.classes))
     
     model_info = torch.load(model_path)
     net.load_state_dict(model_info["net"])
@@ -66,6 +60,7 @@ def test(model_path, val_path, device='cuda', out_err="data/error"):
 
 
 if __name__ == "__main__":
-    model_path = 'checkpoint/best.pth'
-    val_path = '/home/wangjq/wangxt/datasets/gesture-dataset/hand_gesture_v1/val'
-    test(model_path, val_path)
+    model_name = 'seresnet34'
+    model_path = 'checkpoint/hand14c/seresnet34/baseline_2/seresnet34_hand14c_128x128_97.143.pth'
+    val_path = '/home/wangjq/wangxt/datasets/gesture-dataset/gesture_c14_2/val'
+    test(model_name, model_path, val_path)

@@ -1,3 +1,5 @@
+import os
+
 # dataset
 input_size = (128, 128)
 flip_prob = 0.3
@@ -9,8 +11,8 @@ contrast_prob = 0.2
 hue_prob = 0.2
 pad = int(input_size[0] * 0.1)
 data_name = "hand14c"
-train_root = '/home/wangjq/wangxt/datasets/gesture-dataset/hand_gesture_v1/train'
-val_root = '/home/wangjq/wangxt/datasets/gesture-dataset/hand_gesture_v1/val'
+train_root = '/home/wangjq/wangxt/datasets/gesture-dataset/gesture_c14_2/train'
+val_root = '/home/wangjq/wangxt/datasets/gesture-dataset/gesture_c14_2/val'
 
 if data_name == "hand14c":
     classes = ('000-one', '001-five', '002-fist', '003-ok', '004-heartSingle', '005-yearh', '006-three',
@@ -21,31 +23,37 @@ elif data_name == "hand5c":
     classes = ('0', 'close-back', 'close-front', 'open-back', 'open-front')
 
 # solver
-device_ids = [2]
+device_ids = [3]
 batch_size = 64
-epoch = 100
+epoch = 150
 optim = "sgd"
 lr_gamma = 0.5  # 衰减比率
-lr_step_size = 20  # 多少 epoch 衰减一次
-lr = 1e-4
+lr_step_size = 25  # 多少 epoch 衰减一次
+lr = 1e-2
 momentum = 0.9
 weight_decay = 5e-4
 num_workers = 8
 use_amp = False
 
 # model info
-model = "resnet10"
-pretrained = None
-save_checkpoint = 'checkpoint'
-resume = "checkpoint/resnet10_hand14c_128x128_91.429.pth"
+model = "seresnet18"
+pretrained = 'weights/resnet18-5c106cde.pth'
+resume = None
 
 # knowledge distill
-teacher = None
-teacker_ckpt = "checkpoint/resnet18_hand14c_128x128_93.429.pth"
-alpha = 0.9  # 当 alpha 为0时, 意味着不使用 output 进行蒸馏
-temperature = 6
+teacher = 'seresnet34'
+teacker_ckpt = "checkpoint/hand14c/seresnet34/baseline_2/seresnet34_hand14c_128x128_97.143.pth"
+alpha = 0.001  # 当 alpha 为0时, 意味着不使用 output 进行蒸馏
+temperature = 1
 dis_feature = {
     'layer1': (0, 'bn2'), 
+    'layer1': (1, 'bn2'), 
     'layer2': (0, 'bn2'), 
+    'layer2': (1, 'bn2'), 
     'layer3': (0, 'bn2'),
+    'layer3': (1, 'bn2'),
 }
+
+save_checkpoint = os.path.join('checkpoint', data_name, model)
+if not os.path.exists(save_checkpoint):
+    os.makedirs(save_checkpoint)
