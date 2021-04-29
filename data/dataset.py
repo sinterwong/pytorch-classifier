@@ -35,6 +35,42 @@ def read_image(img_path, part_size=0, rand_ch=None):
         return img
 
 
+class TripletDataSet(Dataset):
+    def __init__(self, root, classes_dict, transform=None, target_transform=None, is_train=False):
+        super(ImageDataSet, self).__init__()
+
+        self.class_dict = classes_dict
+
+        # class dict
+        self.image_paths = list(paths.list_images(root))
+
+        random.shuffle(self.image_paths)
+
+        # get label
+        self.label = [self.class_dict[p.split('/')[-2]] for p in self.image_paths]
+
+        self.transform = transform
+        self.label_transform = target_transform
+        self.is_train = is_train
+
+    def __len__(self):
+        return len(self.image_paths)
+
+    def __getitem__(self, index):
+        img_p = self.image_paths[index]
+        label = self.label[index]
+
+        if self.is_train:
+            img = read_image(img_p, rand_ch=0.5)
+        else:
+            img = read_image(img_p)
+
+        if self.transform is not None:
+            img = self.transform(img)
+ 
+        return img, label, img_p
+
+
 class ImageDataSet(Dataset):
     def __init__(self, root, classes_dict, transform=None, target_transform=None, is_train=False):
         super(ImageDataSet, self).__init__()

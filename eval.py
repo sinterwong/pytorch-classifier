@@ -60,7 +60,7 @@ def test(model_name, model_path, val_path, device='cuda', out_err="data/error"):
 
 
 if __name__ == "__main__":
-    model_name = 'seresnet34'
-    model_path = 'checkpoint/hand14c/seresnet34/baseline_2/seresnet34_hand14c_128x128_97.143.pth'
+    model_name = 'seresnet18'
+    model_path = 'checkpoint/hand14c/seresnet18/best_seresnet18_hand14c_128x128.pth'
     val_path = '/home/wangjq/wangxt/datasets/gesture-dataset/gesture_c14_2/val'
     test(model_name, model_path, val_path)

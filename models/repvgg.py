@@ -2,6 +2,7 @@ import torch.nn as nn
 import numpy as np
 import torch
 import os
+import config as cfg
 
 
 def conv_bn(in_channels, out_channels, kernel_size, stride, padding, groups=1):
@@ -133,9 +134,14 @@ class RepVGG(nn.Module):
         self.stage3 = self._make_stage(int(256 * width_multiplier[2]), num_blocks[2], stride=2)
         self.stage4 = self._make_stage(int(512 * width_multiplier[3]), num_blocks[3], stride=2)
         self.gap = nn.AdaptiveAvgPool2d(output_size=1)
-        self.fc = nn.Linear(int(512 * width_multiplier[3]), num_classes)
-
-
+        
+        if cfg.loss_name == "am-softmax":
+            # self.owc_fc = torch.nn.Parameter(torch.randn(512, num_classes), requires_grad=True)
+            # 根据推导的公式来说, 不需要bias
+            self.fc = nn.Linear(int(512 * width_multiplier[3]), num_classes, bias=False)
+        else:
+            self.fc = nn.Linear(int(512 * width_multiplier[3]), num_classes)
+        
     def _make_stage(self, planes, num_blocks, stride):
         strides = [stride] + [1]*(num_blocks-1)
         blocks = []
@@ -155,6 +161,18 @@ class RepVGG(nn.Module):
         out = self.stage4(out)
         out = self.gap(out)
         out = out.view(out.size(0), -1)
+
+        if cfg.loss_name == "am-softmax":
+            # 使用 am-softmax
+            x_norm = torch.norm(out, p=2, dim=1, keepdim=True).clamp(min=1e-12)
+            out = torch.div(out, x_norm)
+
+            # w 就是最后一层全连接, 需要对最后一层全连接的参数进行除模操作
+            w = self.fc.weight.data.permute(1, 0)
+            w_norm = torch.norm(w, p=2, dim=0, keepdim=True).clamp(min=1e-12)
+            w_norm = torch.div(w, w_norm)
+            self.fc.weight.data = w_norm.permute(1, 0)
+
         out = self.fc(out)
         return out
 

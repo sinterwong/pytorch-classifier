@@ -9,13 +9,11 @@ import torch.backends.cudnn as cudnn
 import torchvision
 import torchvision.transforms as T
 import argparse
-from data.dataset import ImageDataSet
+from data.dataset import ImageDataSet, TripletDataSet
 from data.transform import data_transform
 from models.get_network import build_network_by_name
+from loss.get_loss import build_loss_by_name
 from tools.utils import progress_bar
-from tools.distill import DistillForFeatures
-from loss.amsoftmax import AMSoftmax
-from loss.distill import DistillFeatureMSELoss, KLDivLoss
 import warnings
 warnings.filterwarnings("ignore", category=UserWarning)
 
@@ -35,9 +33,12 @@ class_dict = {v: k for k, v in dict(enumerate(classes)).items()}
 
 # get dataloader
 transform_train = data_transform(True)
-trainset = ImageDataSet(root=cfg.train_root, classes_dict=class_dict, transform=transform_train, is_train=True)
+if cfg.use_triplet_loss:  # 使用 triplet loss 需要调整dataset
+    triplet_loss = nn.TripletMarginLoss(margin=1.0, p=2)
+    trainset = TripletDataSet(root=cfg.train_root, classes_dict=class_dict, transform=transform_train, is_train=True)
+else:
+    trainset = ImageDataSet(root=cfg.train_root, classes_dict=class_dict, transform=transform_train, is_train=True)
 trainloader = torch.utils.data.DataLoader(trainset, batch_size=cfg.batch_size, shuffle=True, num_workers=cfg.num_workers)
-
 
 transform_test = data_transform(False)
 testset = ImageDataSet(root=cfg.val_root, classes_dict=class_dict, transform=transform_test, is_train=False)
@@ -66,14 +67,13 @@ if t_net:
     t_net = t_net.to(device)
 
 if t_net:
-    criterion = KLDivLoss(cfg.alpha, cfg.temperature)
+    criterion = build_loss_by_name('kd-output')
     if cfg.dis_feature:
         # 使用中间输出层进行蒸馏
         f_distill = DistillForFeatures(cfg.dis_feature, net, t_net)
-        fs_criterion = DistillFeatureMSELoss(reduction="mean", num_df=len(cfg.dis_feature))
+        fs_criterion = build_loss_by_name('kd-feature')
 else:
-    criterion = nn.CrossEntropyLoss()
-    # criterion = AMSoftmax()
+    criterion = build_loss_by_name(cfg.loss_name)
 
 if cfg.optim == "sgd":
     optimizer = optim.SGD(
@@ -199,7 +199,7 @@ def test(epoch):
         }
         if not os.path.exists(cfg.save_checkpoint):
             os.makedirs(cfg.save_checkpoint)
-        torch.save(state, os.path.join(cfg.save_checkpoint, "best_%s_%s_%dx%d.pth" % (cfg.model, cfg.data_name, cfg.input_size[0], cfg.input_size[1])))
+        torch.save(state, os.path.join(cfg.save_checkpoint, "best_%s_%s_%s_%dx%d.pth" % (cfg.model, cfg.loss_name, cfg.data_name, cfg.input_size[0], cfg.input_size[1])))
         best_acc = acc
 
 for epoch in range(start_epoch, start_epoch + cfg.epoch):

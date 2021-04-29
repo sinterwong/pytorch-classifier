@@ -5,39 +5,55 @@ from torch.autograd import Variable
 import torch.nn.functional as F
 
 
-# AMSoftmax 层的pytorch实现，两个重要参数 scale，margin（不同难度和量级的数据对应不同的最优参数）
+# class AMSoftmax(nn.Module):
+#     def __init__(self,
+#                  in_feats,
+#                  n_classes=10,
+#                  m=0.3,
+#                  s=15):
+#         super(AMSoftmax, self).__init__()
+#         self.m = m
+#         self.s = s
+#         self.in_feats = in_feats
+#         # 作为最后一个全连接层
+#         self.W = torch.nn.Parameter(torch.randn(in_feats, n_classes), requires_grad=True)
+#         self.ce = nn.CrossEntropyLoss()
+#         nn.init.xavier_normal_(self.W, gain=1)
+
+#     def forward(self, x, lb):
+#         # x 为最后一个全连接的输入(最终特征)
+#         device = x.device
+#         assert x.size()[0] == lb.size()[0]
+#         assert x.size()[1] == self.in_feats
+#         x_norm = torch.norm(x, p=2, dim=1, keepdim=True).clamp(min=1e-12)
+#         x_norm = torch.div(x, x_norm)
+#         w_norm = torch.norm(self.W, p=2, dim=0, keepdim=True).clamp(min=1e-12)
+#         w_norm = torch.div(self.W, w_norm).to(device)
+#         costh = torch.mm(x_norm, w_norm)
+#         lb_view = lb.view(-1, 1)
+#         if lb_view.is_cuda: lb_view = lb_view.cpu()
+#         delt_costh = torch.zeros(costh.size()).scatter_(1, lb_view, self.m)
+#         if x.is_cuda: delt_costh = delt_costh.cuda()
+#         costh_m = costh - delt_costh
+#         costh_m_s = self.s * costh_m
+#         loss = self.ce(costh_m_s, lb)
+#         return loss
+
+
 class AMSoftmax(nn.Module):
-    def __init__(self):
+    def __init__(self, m=0.3, s=15):
         super(AMSoftmax, self).__init__()
+        self.m = m
+        self.s = s
+        self.ce = nn.CrossEntropyLoss()
 
-    def forward(self, input, target, scale=10.0, margin=0.35):
-        # self.it += 1
-        cos_theta = input
-        target = target.view(-1, 1)  # size=(B,1)
-
-        index = cos_theta.data * 0.0  # size=(B,Classnum)
-        index.scatter_(1, target.data.view(-1, 1), 1)
-        index = index.byte()
-        index = Variable(index)
-
-        output = cos_theta * 1.0  # size=(B,Classnum)
-        output[index] -= margin
-        output = output * scale
-
-        logpt = F.log_softmax(output)
-        # logpt = F.logsigmoid(output)
-
-        logpt = logpt.gather(1, target)
-        logpt = logpt.view(-1)
-
-        loss = -1 * logpt
-        loss = loss.mean()
-
+    def forward(self, x, lb):
+        costh = x
+        lb_view = lb.view(-1, 1)
+        if lb_view.is_cuda: lb_view = lb_view.cpu()
+        delt_costh = torch.zeros(costh.size()).scatter_(1, lb_view, self.m)
+        if x.is_cuda: delt_costh = delt_costh.cuda()
+        costh_m = costh - delt_costh
+        costh_m_s = self.s * costh_m
+        loss = self.ce(costh_m_s, lb)
         return loss
-
-
-if __name__ == '__main__':
-
-    print(loss.detach().numpy())
-    print(list(criteria.parameters())[0].shape)
-    print(type(next(criteria.parameters())))

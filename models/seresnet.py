@@ -1,10 +1,10 @@
 import torch
 import torch.nn as nn
-# from torchvision.models.utils import load_state_dict_from_url
 import os
 from torch.nn import functional as F
 from torchvision import datasets, models, transforms
 from .selayer import SELayer
+import config as cfg
 
 
 model_urls = {
@@ -152,8 +152,13 @@ class ResNet(nn.Module):
         self.layer4 = self._make_layer(block, 512, layers[3], stride=2,
                                        dilate=replace_stride_with_dilation[2])
         self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
-        # self.owc_fc = nn.Linear(128 * block.expansion, num_classes)
-        self.owc_fc = nn.Linear(512 * block.expansion, num_classes)
+        
+        if cfg.loss_name == "am-softmax":
+            # self.owc_fc = torch.nn.Parameter(torch.randn(512, num_classes), requires_grad=True)
+            # 根据推导的公式来说, 不需要bias
+            self.owc_fc = nn.Linear(512 * block.expansion, num_classes, bias=False)
+        else:
+            self.owc_fc = nn.Linear(512 * block.expansion, num_classes)
 
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
@@ -210,6 +215,18 @@ class ResNet(nn.Module):
 
         x = self.avgpool(x)
         x = torch.flatten(x, 1)
+
+        if cfg.loss_name == "am-softmax":
+            # 使用 am-softmax
+            x_norm = torch.norm(x, p=2, dim=1, keepdim=True).clamp(min=1e-12)
+            x = torch.div(x, x_norm)
+
+            # w 就是最后一层全连接, 需要对最后一层全连接的参数进行除模操作
+            w = self.owc_fc.weight.data.permute(1, 0)
+            w_norm = torch.norm(w, p=2, dim=0, keepdim=True).clamp(min=1e-12)
+            w_norm = torch.div(w, w_norm)
+            self.owc_fc.weight.data = w_norm.permute(1, 0)
+
         x = self.owc_fc(x)
 
         return x

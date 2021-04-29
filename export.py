@@ -12,7 +12,7 @@ import shutil
 def main():
     model = build_network_by_name(cfg.model, None, num_classes=len(cfg.classes))
 
-    model_name = "best_%s_%s_%dx%d.pth" % (cfg.model, cfg.data_name, cfg.input_size[0], cfg.input_size[1])
+    model_name = "best_%s_%s_%s_%dx%d.pth" % (cfg.model, cfg.loss_name, cfg.data_name, cfg.input_size[0], cfg.input_size[1])
     model_path = os.path.join(cfg.save_checkpoint, model_name)
     model_info = torch.load(model_path)
     model.load_state_dict(model_info["net"])
@@ -48,4 +48,4 @@ if __name__ == '__main__':
     main()    
 
     # convert to MNN
-    # ./MNNConvert -f ONNX --modelFile /home/wangjq/wangxt/workspace/pytorch-classifier/checkpoint/best_98.323.onnx --MNNModel /home/wangjq/wangxt/workspace/pytorch-classifier/checkpoint/best_98.323.mnn --bizCode biz
+    # ./MNNConvert -f ONNX --modelFile /home/wangjq/wangxt/workspace/pytorch-classifier/checkpoint/hand3c/seresnet10/baseline_2/seresnet10_hand3c_128x128_100.000.onnx --MNNModel /home/wangjq/wangxt/workspace/pytorch-classifier/checkpoint/hand3c/seresnet10/baseline_2/seresnet10_hand3c_128x128_100.000.mnn --bizCode biz
