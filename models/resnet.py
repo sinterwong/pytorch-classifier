@@ -120,7 +120,7 @@ class Bottleneck(nn.Module):
 class ResNet(nn.Module):
 
     def __init__(self, block, layers, num_classes=1000, zero_init_residual=False,
-                 groups=1, width_per_group=64, replace_stride_with_dilation=None, 
+                 groups=1, dropout_factor=0.5, width_per_group=64, replace_stride_with_dilation=None, 
                  norm_layer=None, pretrained=False):
         super(ResNet, self).__init__()
         if norm_layer is None:
@@ -152,7 +152,9 @@ class ResNet(nn.Module):
                                        dilate=replace_stride_with_dilation[2])
         self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
 
-        if cfg.loss_name == "am-softmax":
+        self.dropout = nn.Dropout(dropout_factor)
+
+        if cfg.loss_name == "amsoftmax":
             # self.owc_fc = torch.nn.Parameter(torch.randn(512, num_classes), requires_grad=True)
             # 根据推导的公式来说, 不需要bias
             self.owc_fc = nn.Linear(512 * block.expansion, num_classes, bias=False)
@@ -215,7 +217,9 @@ class ResNet(nn.Module):
         x = self.avgpool(x)
         x = torch.flatten(x, 1)
 
-        if cfg.loss_name == "am-softmax":
+        x = self.dropout(x)
+
+        if cfg.loss_name == "amsoftmax":
             # 使用 am-softmax
             x_norm = torch.norm(x, p=2, dim=1, keepdim=True).clamp(min=1e-12)
             x = torch.div(x, x_norm)

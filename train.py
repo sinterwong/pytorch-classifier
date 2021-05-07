@@ -12,9 +12,12 @@ import argparse
 from data.dataset import ImageDataSet, TripletDataSet
 from data.transform import data_transform
 from models.get_network import build_network_by_name
+from scheduler import GradualWarmupScheduler
 from loss.get_loss import build_loss_by_name
 from tools.utils import progress_bar
+from tools.distill import DistillForFeatures
 import warnings
+
 warnings.filterwarnings("ignore", category=UserWarning)
 
 parser = argparse.ArgumentParser(description='PyTorch LPC Training')
@@ -90,8 +93,10 @@ elif cfg.optim == "adam":
 else:
     raise Exception("暂未支持%s optimizer, 请在此处手动添加" % cfg.optim)
 
-
 lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=cfg.lr_step_size, gamma=cfg.lr_gamma)
+
+if cfg.warmup_step:
+    lr_scheduler = GradualWarmupScheduler(optimizer, multiplier=1, total_epoch=cfg.warmup_step, after_scheduler=lr_scheduler)
 
 if cfg.resume:
     # Load checkpoint.
@@ -204,5 +209,8 @@ def test(epoch):
 
 for epoch in range(start_epoch, start_epoch + cfg.epoch):
     train(epoch)
-    lr_scheduler.step()
+    if cfg.warmup_step:
+        lr_scheduler.step(epoch)
+    else:
+        lr_scheduler.step()
     test(epoch)

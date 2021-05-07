@@ -23,17 +23,18 @@ elif data_name == "hand5c":
     classes = ('0', 'close-back', 'close-front', 'open-back', 'open-front')
 
 # solver
-device_ids = [2]
+device_ids = [3]
 batch_size = 64
 epoch = 150
 optim = "sgd"
 lr_gamma = 0.5  # 衰减比率
-lr_step_size = 25  # 多少 epoch 衰减一次
+lr_step_size = 21  # 多少 epoch 衰减一次
 lr = 1e-2
 momentum = 0.9
 weight_decay = 5e-4
 num_workers = 8
 use_amp = False
+warmup_step = None
 
 # loss
 use_triplet_loss = False  # 是否使用 三元组损失
@@ -42,7 +43,7 @@ margin = 0.35
 scale = 10.
 
 # model
-model = "seresnet10"
+model = "seresnet18"
 pretrained = 'weights/resnet18-5c106cde.pth'
 resume = None
 

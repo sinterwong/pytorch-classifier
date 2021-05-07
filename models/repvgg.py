@@ -135,7 +135,7 @@ class RepVGG(nn.Module):
         self.stage4 = self._make_stage(int(512 * width_multiplier[3]), num_blocks[3], stride=2)
         self.gap = nn.AdaptiveAvgPool2d(output_size=1)
         
-        if cfg.loss_name == "am-softmax":
+        if cfg.loss_name == "amsoftmax":
             # self.owc_fc = torch.nn.Parameter(torch.randn(512, num_classes), requires_grad=True)
             # 根据推导的公式来说, 不需要bias
             self.fc = nn.Linear(int(512 * width_multiplier[3]), num_classes, bias=False)
@@ -162,7 +162,7 @@ class RepVGG(nn.Module):
         out = self.gap(out)
         out = out.view(out.size(0), -1)
 
-        if cfg.loss_name == "am-softmax":
+        if cfg.loss_name == "amsoftmax":
             # 使用 am-softmax
             x_norm = torch.norm(out, p=2, dim=1, keepdim=True).clamp(min=1e-12)
             out = torch.div(out, x_norm)

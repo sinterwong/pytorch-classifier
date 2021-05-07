@@ -17,7 +17,7 @@ def main():
     model_info = torch.load(model_path)
     model.load_state_dict(model_info["net"])
 
-    output = os.path.join(cfg.save_checkpoint, "%s_%s_%dx%d_%.3f" % (cfg.model, cfg.data_name, cfg.input_size[0], cfg.input_size[1], model_info['acc']))
+    output = os.path.join(cfg.save_checkpoint, "%s_%s_%s_%dx%d_%.3f" % (cfg.model, cfg.loss_name, cfg.data_name, cfg.input_size[0], cfg.input_size[1], model_info['acc']))
 
     if cfg.model.split("-")[0] == "RepVGG":
         # convert to inference module
