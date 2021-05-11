@@ -220,7 +220,7 @@ class ResNet(nn.Module):
         x = self.avgpool(x)
         x = torch.flatten(x, 1)
 
-        x = self.dropout(x)
+        # x = self.dropout(x)
         if cfg.loss_name == "amsoftmax":
             # 使用 am-softmax
             x_norm = torch.norm(x, p=2, dim=1, keepdim=True).clamp(min=1e-12)

@@ -8,10 +8,12 @@ class KLDivLoss():
         super(KLDivLoss).__init__()
         self.alpha = alpha
         self.T = T
-        self.KDLoss = nn.KLDivLoss()
+        self.KDLoss = nn.KLDivLoss(reduction="mean")
 
-    def __call__(self, outputs, t_outputs, labels):
-        return self.KDLoss(F.log_softmax(outputs / self.T, dim=1), F.softmax(t_outputs / self.T, dim=1)) * (self.alpha * self.T * self.T) + F.cross_entropy(outputs, labels) * (1. - self.alpha)
+    def __call__(self, outputs, t_outputs):
+        log_p = F.log_softmax(outputs / self.T, dim=1)
+        q = F.softmax(t_outputs / self.T, dim=1)
+        return self.KDLoss(log_p, q) * (self.T ** 2)
 
 
 class DistillFeatureMSELoss():

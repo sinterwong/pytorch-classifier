@@ -32,7 +32,7 @@ lr_step_size = 21  # 多少 epoch 衰减一次
 lr = 1e-2
 momentum = 0.9
 weight_decay = 5e-4
-num_workers = 8
+num_workers = 16
 use_amp = False
 warmup_step = None
 
@@ -43,14 +43,15 @@ margin = 0.35
 scale = 10.
 
 # model
-model = "seresnet18"
+model = "seresnet10"
 pretrained = 'weights/resnet18-5c106cde.pth'
 resume = None
 
 # knowledge distill
 teacher = None
 teacker_ckpt = "checkpoint/hand14c/seresnet18/baseline_2/seresnet18_hand14c_128x128_94.286.pth"
-alpha = 0.001  # 当 alpha 为0时, 意味着不使用 output 进行蒸馏
+cs_kd = True
+alpha = 0.5  # 当 alpha 为0时, 意味着不使用 output 进行蒸馏
 temperature = 1
 dis_feature = {
     'layer1': (0, 'bn2'), 

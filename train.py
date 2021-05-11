@@ -9,8 +9,8 @@ import torch.backends.cudnn as cudnn
 import torchvision
 import torchvision.transforms as T
 import argparse
-from data.dataset import ImageDataSet, TripletDataSet
-from data.transform import data_transform
+from data.dataset import ImageDataSet, ImageDataSet2, PairBatchSampler, ImageDatasetWrapper
+from data.transform import data_transform, fast_transform, data_aug
 from models.get_network import build_network_by_name
 from scheduler import GradualWarmupScheduler
 from loss.get_loss import build_loss_by_name
@@ -35,17 +35,28 @@ classes = cfg.classes
 class_dict = {v: k for k, v in dict(enumerate(classes)).items()}
 
 # get dataloader
-transform_train = data_transform(True)
-if cfg.use_triplet_loss:  # 使用 triplet loss 需要调整dataset
-    triplet_loss = nn.TripletMarginLoss(margin=1.0, p=2)
-    trainset = TripletDataSet(root=cfg.train_root, classes_dict=class_dict, transform=transform_train, is_train=True)
-else:
-    trainset = ImageDataSet(root=cfg.train_root, classes_dict=class_dict, transform=transform_train, is_train=True)
-trainloader = torch.utils.data.DataLoader(trainset, batch_size=cfg.batch_size, shuffle=True, num_workers=cfg.num_workers)
+# transform_train = data_transform(True)
+# trainset = ImageDataSet(root=cfg.train_root, classes_dict=class_dict, transform=transform_train, is_train=True)
+# trainloader = torch.utils.data.DataLoader(trainset, batch_size=cfg.batch_size, shuffle=True, num_workers=cfg.num_workers)
 
-transform_test = data_transform(False)
-testset = ImageDataSet(root=cfg.val_root, classes_dict=class_dict, transform=transform_test, is_train=False)
+# transform_test = data_transform(False)
+# testset = ImageDataSet(root=cfg.val_root, classes_dict=class_dict, transform=transform_test, is_train=False)
+# testloader = torch.utils.data.DataLoader(testset, batch_size=cfg.batch_size, shuffle=False, num_workers=4)
+
+aug_seq = data_aug()
+transform = fast_transform()
+trainset = ImageDataSet2(root=cfg.train_root, classes_dict=class_dict, transform=transform, data_aug=aug_seq, is_train=True)
+
+testset = ImageDataSet2(root=cfg.val_root, classes_dict=class_dict, transform=transform, is_train=False)
 testloader = torch.utils.data.DataLoader(testset, batch_size=cfg.batch_size, shuffle=False, num_workers=4)
+
+# cs-kd 自蒸馏
+if cfg.cs_kd:
+    trainset = ImageDatasetWrapper(trainset)
+    batch_sampler = PairBatchSampler(trainset, cfg.batch_size)
+    trainloader = torch.utils.data.DataLoader(trainset, batch_sampler=batch_sampler, num_workers=cfg.num_workers)
+else:
+    trainloader = torch.utils.data.DataLoader(trainset, batch_size=cfg.batch_size, shuffle=True, num_workers=cfg.num_workers)
 
 # Model
 print('==> Building model..')
@@ -69,14 +80,14 @@ if t_net:
     t_net.load_state_dict(model_info["net"])
     t_net = t_net.to(device)
 
-if t_net:
-    criterion = build_loss_by_name('kd-output')
+if t_net or cfg.cs_kd:
+    kdloss = build_loss_by_name('kd-output')
     if cfg.dis_feature:
         # 使用中间输出层进行蒸馏
         f_distill = DistillForFeatures(cfg.dis_feature, net, t_net)
         fs_criterion = build_loss_by_name('kd-feature')
-else:
-    criterion = build_loss_by_name(cfg.loss_name)
+
+criterion = build_loss_by_name(cfg.loss_name)
 
 if cfg.optim == "sgd":
     optimizer = optim.SGD(
@@ -93,7 +104,9 @@ elif cfg.optim == "adam":
 else:
     raise Exception("暂未支持%s optimizer, 请在此处手动添加" % cfg.optim)
 
-lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=cfg.lr_step_size, gamma=cfg.lr_gamma)
+# lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=cfg.lr_step_size, gamma=cfg.lr_gamma)  # 等步长衰减
+# lr_scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=cfg.lr_gamma)  # 每步都衰减(γ 一般0.9+)
+lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=cfg.epoch // 15)  # 余弦式周期策略
 
 if cfg.warmup_step:
     lr_scheduler = GradualWarmupScheduler(optimizer, multiplier=1, total_epoch=cfg.warmup_step, after_scheduler=lr_scheduler)
@@ -122,13 +135,32 @@ def train(epoch):
     # 自动混合精度
     scaler = torch.cuda.amp.GradScaler()
     for batch_idx, (inputs, targets, _) in enumerate(trainloader):
+        
         inputs, targets = inputs.to(device), targets.to(device)
+
+        loss = torch.cuda.FloatTensor([0]) if inputs.is_cuda else torch.Tensor([0])
+
         optimizer.zero_grad()
 
         with torch.cuda.amp.autocast():  # 自动混合精度 (pytorch1.6之后)
+            if cfg.cs_kd:
+                # 将输入分为两份
+                contrast_inputs = inputs[cfg.batch_size:]
+                contrast_targets = targets[cfg.batch_size:]
+
+                inputs = inputs[:cfg.batch_size]
+                targets = targets[:cfg.batch_size]
+
+                with torch.no_grad():
+                    contrast_outputs = net(contrast_inputs)
+
+            # 分成两份之后再推理
             outputs = net(inputs)
+
+            if cfg.cs_kd:
+                loss += kdloss(outputs, contrast_outputs)  # 加入来自自己的监督
+
             if t_net:
-                loss = torch.cuda.FloatTensor([0]) if outputs.is_cuda else torch.Tensor([0])
                 with torch.no_grad():
                     teacher_outputs = t_net(inputs)
                 if cfg.dis_feature:
@@ -144,9 +176,9 @@ def train(epoch):
                     # 选定的 feature 分别计算loss
                     fs_loss = fs_criterion(s_out, t_out)
                     loss += fs_loss
-                loss += criterion(outputs, teacher_outputs, targets)
+                loss += (cfg.alpha * kdloss(outputs, teacher_outputs) + (1 - cfg.alpha) * criterion(outputs, targets))
             else:
-                loss = criterion(outputs, targets)
+                loss += criterion(outputs, targets)
         
             # Scales loss. 放大梯度.
             scaler.scale(loss).backward()
@@ -158,8 +190,8 @@ def train(epoch):
         total += targets.size(0)
         correct += predicted.eq(targets).sum().item()
 
-        progress_bar(batch_idx, len(trainloader), 'Loss: %.3f | Acc: %.3f%% (%d/%d)'
-            % (train_loss/(batch_idx+1), 100.*correct/total, correct, total))
+        progress_bar(batch_idx, len(trainloader), 'Current lr: %f | Loss: %.3f | Acc: %.3f%% (%d/%d)'
+            % (optimizer.state_dict()['param_groups'][0]['lr'], train_loss/(batch_idx+1), 100.*correct/total, correct, total))
 
     if t_net and cfg.dis_feature:
         for hook in hooks:
@@ -209,8 +241,5 @@ def test(epoch):
 
 for epoch in range(start_epoch, start_epoch + cfg.epoch):
     train(epoch)
-    if cfg.warmup_step:
-        lr_scheduler.step(epoch)
-    else:
-        lr_scheduler.step()
+    lr_scheduler.step()
     test(epoch)
