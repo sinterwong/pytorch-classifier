@@ -35,20 +35,19 @@ classes = cfg.classes
 class_dict = {v: k for k, v in dict(enumerate(classes)).items()}
 
 # get dataloader
-# transform_train = data_transform(True)
-# trainset = ImageDataSet(root=cfg.train_root, classes_dict=class_dict, transform=transform_train, is_train=True)
-# trainloader = torch.utils.data.DataLoader(trainset, batch_size=cfg.batch_size, shuffle=True, num_workers=cfg.num_workers)
+transform_train = data_transform(True)
+trainset = ImageDataSet(root=cfg.train_root, classes_dict=class_dict, transform=transform_train, is_train=True)
 
-# transform_test = data_transform(False)
-# testset = ImageDataSet(root=cfg.val_root, classes_dict=class_dict, transform=transform_test, is_train=False)
-# testloader = torch.utils.data.DataLoader(testset, batch_size=cfg.batch_size, shuffle=False, num_workers=4)
-
-aug_seq = data_aug()
-transform = fast_transform()
-trainset = ImageDataSet2(root=cfg.train_root, classes_dict=class_dict, transform=transform, data_aug=aug_seq, is_train=True)
-
-testset = ImageDataSet2(root=cfg.val_root, classes_dict=class_dict, transform=transform, is_train=False)
+transform_test = data_transform(False)
+testset = ImageDataSet(root=cfg.val_root, classes_dict=class_dict, transform=transform_test, is_train=False)
 testloader = torch.utils.data.DataLoader(testset, batch_size=cfg.batch_size, shuffle=False, num_workers=4)
+
+# aug_seq = data_aug()
+# transform = fast_transform()
+# trainset = ImageDataSet2(root=cfg.train_root, classes_dict=class_dict, transform=transform, data_aug=aug_seq, is_train=True)
+
+# testset = ImageDataSet2(root=cfg.val_root, classes_dict=class_dict, transform=transform, is_train=False)
+# testloader = torch.utils.data.DataLoader(testset, batch_size=cfg.batch_size, shuffle=False, num_workers=4)
 
 # cs-kd 自蒸馏
 if cfg.cs_kd:
@@ -104,9 +103,9 @@ elif cfg.optim == "adam":
 else:
     raise Exception("暂未支持%s optimizer, 请在此处手动添加" % cfg.optim)
 
-# lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=cfg.lr_step_size, gamma=cfg.lr_gamma)  # 等步长衰减
+lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=cfg.lr_step_size, gamma=cfg.lr_gamma)  # 等步长衰减
 # lr_scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=cfg.lr_gamma)  # 每步都衰减(γ 一般0.9+)
-lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=cfg.epoch // 15)  # 余弦式周期策略
+# lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=cfg.epoch // 10)  # 余弦式周期策略
 
 if cfg.warmup_step:
     lr_scheduler = GradualWarmupScheduler(optimizer, multiplier=1, total_epoch=cfg.warmup_step, after_scheduler=lr_scheduler)
@@ -179,7 +178,7 @@ def train(epoch):
                 loss += (cfg.alpha * kdloss(outputs, teacher_outputs) + (1 - cfg.alpha) * criterion(outputs, targets))
             else:
                 loss += criterion(outputs, targets)
-        
+
             # Scales loss. 放大梯度.
             scaler.scale(loss).backward()
             scaler.step(optimizer)
