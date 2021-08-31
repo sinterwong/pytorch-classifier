@@ -17,7 +17,7 @@ def test(model_name, model_path, val_path, device='cuda', out_err="data/error"):
 
     # create dataloader
     transform_test = data_transform(False)
-    testset = ImageDataSet(root=cfg.val_root, classes_dict=class_dict, transform=transform_test, is_train=False)
+    testset = ImageDataSet(root=val_path, classes_dict=class_dict, transform=transform_test, is_train=False)
     testloader = torch.utils.data.DataLoader(testset, batch_size=cfg.batch_size, shuffle=False, num_workers=4)
 
     net = build_network_by_name(model_name, None, num_classes=len(cfg.classes))
@@ -60,7 +60,7 @@ def test(model_name, model_path, val_path, device='cuda', out_err="data/error"):
 
 
 if __name__ == "__main__":
-    model_name = 'seresnet18'
-    model_path = 'checkpoint/hand14c/seresnet18/best_seresnet18_hand14c_128x128.pth'
-    val_path = '/home/wangjq/wangxt/datasets/gesture-dataset/gesture_c14_2/val'
+    model_name = 'resnet10'
+    model_path = 'checkpoint/font-color/resnet10/resnet10_ce_font-color_32x96_99.836.pth'
+    val_path = '/home/wangxt/datasets/scp_data0825/test'
     test(model_name, model_path, val_path)

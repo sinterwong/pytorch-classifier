@@ -1,0 +1,6 @@
+checkpoint
+*__pycache__*
+data/*error*
+data/*sample*
+weights
+

@@ -92,7 +92,7 @@ class ImageDataSet2(Dataset):
             self.transform = T.ToTensor()
         self.data_aug = data_aug
         self.is_train = is_train
-    
+
     def __len__(self):
         return len(self.image_paths)
 

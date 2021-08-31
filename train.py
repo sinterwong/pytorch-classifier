@@ -1,22 +1,23 @@
+import warnings
+from tools.distill import DistillForFeatures
+from tools.utils import progress_bar
+from loss.get_loss import build_loss_by_name
+from scheduler import GradualWarmupScheduler
+from models.get_network import build_network_by_name
+from data.transform import data_transform, fast_transform, data_aug
+from data.dataset import ImageDataSet, ImageDataSet2, PairBatchSampler, ImageDatasetWrapper
+import argparse
+import torchvision.transforms as T
+import torchvision
+import torch.backends.cudnn as cudnn
+import torch.nn.functional as F
+import torch.optim as optim
+import torch.nn as nn
+import torch
 import os
 import config as cfg
-os.environ["CUDA_VISIBLE_DEVICES"] =str(cfg.device_ids[0]) if len(cfg.device_ids) == 1 else ",".join(cfg.device_ids)
-import torch
-import torch.nn as nn
-import torch.optim as optim
-import torch.nn.functional as F
-import torch.backends.cudnn as cudnn
-import torchvision
-import torchvision.transforms as T
-import argparse
-from data.dataset import ImageDataSet, ImageDataSet2, PairBatchSampler, ImageDatasetWrapper
-from data.transform import data_transform, fast_transform, data_aug
-from models.get_network import build_network_by_name
-from scheduler import GradualWarmupScheduler
-from loss.get_loss import build_loss_by_name
-from tools.utils import progress_bar
-from tools.distill import DistillForFeatures
-import warnings
+os.environ["CUDA_VISIBLE_DEVICES"] = str(cfg.device_ids[0]) if len(
+    cfg.device_ids) == 1 else ",".join(cfg.device_ids)
 
 warnings.filterwarnings("ignore", category=UserWarning)
 
@@ -36,11 +37,14 @@ class_dict = {v: k for k, v in dict(enumerate(classes)).items()}
 
 # get dataloader
 transform_train = data_transform(True)
-trainset = ImageDataSet(root=cfg.train_root, classes_dict=class_dict, transform=transform_train, is_train=True)
+trainset = ImageDataSet(root=cfg.train_root, classes_dict=class_dict,
+                        transform=transform_train, is_train=True)
 
 transform_test = data_transform(False)
-testset = ImageDataSet(root=cfg.val_root, classes_dict=class_dict, transform=transform_test, is_train=False)
-testloader = torch.utils.data.DataLoader(testset, batch_size=cfg.batch_size, shuffle=False, num_workers=4)
+testset = ImageDataSet(root=cfg.val_root, classes_dict=class_dict,
+                       transform=transform_test, is_train=False)
+testloader = torch.utils.data.DataLoader(
+    testset, batch_size=cfg.batch_size, shuffle=False, num_workers=4)
 
 # aug_seq = data_aug()
 # transform = fast_transform()
@@ -53,9 +57,11 @@ testloader = torch.utils.data.DataLoader(testset, batch_size=cfg.batch_size, shu
 if cfg.cs_kd:
     trainset = ImageDatasetWrapper(trainset)
     batch_sampler = PairBatchSampler(trainset, cfg.batch_size)
-    trainloader = torch.utils.data.DataLoader(trainset, batch_sampler=batch_sampler, num_workers=cfg.num_workers)
+    trainloader = torch.utils.data.DataLoader(
+        trainset, batch_sampler=batch_sampler, num_workers=cfg.num_workers)
 else:
-    trainloader = torch.utils.data.DataLoader(trainset, batch_size=cfg.batch_size, shuffle=True, num_workers=cfg.num_workers)
+    trainloader = torch.utils.data.DataLoader(
+        trainset, batch_size=cfg.batch_size, shuffle=True, num_workers=cfg.num_workers)
 
 # Model
 print('==> Building model..')
@@ -66,7 +72,7 @@ if device == 'cuda' and len(cfg.device_ids) > 1:
     net = torch.nn.DataParallel(net, device_ids=range(len(cfg.device_ids)))
     cudnn.benchmark = True
 
-# Knowledge Distillation 
+# Knowledge Distillation
 if cfg.teacher:
     print('==> Building teacher model..')
     t_net = build_network_by_name(cfg.teacher, None, len(cfg.classes), deploy=True)
@@ -90,25 +96,27 @@ criterion = build_loss_by_name(cfg.loss_name)
 
 if cfg.optim == "sgd":
     optimizer = optim.SGD(
-                        filter(lambda p: p.requires_grad, net.parameters()), 
-                        lr=cfg.lr, 
-                        momentum=cfg.momentum, 
-                        weight_decay=cfg.weight_decay)
+        filter(lambda p: p.requires_grad, net.parameters()),
+        lr=cfg.lr,
+        momentum=cfg.momentum,
+        weight_decay=cfg.weight_decay)
 elif cfg.optim == "adam":
     optimizer = torch.optim.Adam(
-                        filter(lambda p: p.requires_grad, net.parameters()), 
-                        lr=cfg.lr, 
-                        betas=(0.9, 0.99), 
-                        weight_decay=cfg.weight_decay)
+        filter(lambda p: p.requires_grad, net.parameters()),
+        lr=cfg.lr,
+        betas=(0.9, 0.99),
+        weight_decay=cfg.weight_decay)
 else:
     raise Exception("暂未支持%s optimizer, 请在此处手动添加" % cfg.optim)
 
-lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=cfg.lr_step_size, gamma=cfg.lr_gamma)  # 等步长衰减
+lr_scheduler = torch.optim.lr_scheduler.StepLR(
+    optimizer, step_size=cfg.lr_step_size, gamma=cfg.lr_gamma)  # 等步长衰减
 # lr_scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=cfg.lr_gamma)  # 每步都衰减(γ 一般0.9+)
 # lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=cfg.epoch // 10)  # 余弦式周期策略
 
 if cfg.warmup_step:
-    lr_scheduler = GradualWarmupScheduler(optimizer, multiplier=1, total_epoch=cfg.warmup_step, after_scheduler=lr_scheduler)
+    lr_scheduler = GradualWarmupScheduler(
+        optimizer, multiplier=1, total_epoch=cfg.warmup_step, after_scheduler=lr_scheduler)
 
 if cfg.resume:
     # Load checkpoint.
@@ -121,6 +129,8 @@ if cfg.resume:
     # lr_scheduler = checkpoint['lr_scheduler']
 
 # Training
+
+
 def train(epoch):
     print('\nEpoch: %d' % epoch)
     net.train()
@@ -134,10 +144,11 @@ def train(epoch):
     # 自动混合精度
     scaler = torch.cuda.amp.GradScaler()
     for batch_idx, (inputs, targets, _) in enumerate(trainloader):
-        
+
         inputs, targets = inputs.to(device), targets.to(device)
 
-        loss = torch.cuda.FloatTensor([0]) if inputs.is_cuda else torch.Tensor([0])
+        loss = torch.cuda.FloatTensor(
+            [0]) if inputs.is_cuda else torch.Tensor([0])
 
         optimizer.zero_grad()
 
@@ -145,7 +156,7 @@ def train(epoch):
             if cfg.cs_kd:
                 # 将输入分为两份
                 contrast_inputs = inputs[cfg.batch_size:]
-                contrast_targets = targets[cfg.batch_size:]
+                # contrast_targets = targets[cfg.batch_size:]
 
                 inputs = inputs[:cfg.batch_size]
                 targets = targets[:cfg.batch_size]
@@ -175,9 +186,13 @@ def train(epoch):
                     # 选定的 feature 分别计算loss
                     fs_loss = fs_criterion(s_out, t_out)
                     loss += fs_loss
-                loss += (cfg.alpha * kdloss(outputs, teacher_outputs) + (1 - cfg.alpha) * criterion(outputs, targets))
+                loss += (cfg.alpha * kdloss(outputs, teacher_outputs) +
+                         (1 - cfg.alpha) * criterion(outputs, targets))
             else:
-                loss += criterion(outputs, targets)
+                if isinstance(outputs, list):
+                    loss += sum([criterion(o, targets) / len(outputs) for o in outputs])
+                else:
+                    loss += criterion(outputs, targets)
 
             # Scales loss. 放大梯度.
             scaler.scale(loss).backward()
@@ -185,12 +200,15 @@ def train(epoch):
             scaler.update()
 
         train_loss += loss.item()
-        _, predicted = outputs.max(1)
+        if isinstance(outputs, list):
+            _, predicted = (outputs[0] + outputs[1]).max(1)
+        else:
+            _, predicted = outputs.max(1)
         total += targets.size(0)
         correct += predicted.eq(targets).sum().item()
 
-        progress_bar(batch_idx, len(trainloader), 'Current lr: %f | Loss: %.3f | Acc: %.3f%% (%d/%d)'
-            % (optimizer.state_dict()['param_groups'][0]['lr'], train_loss/(batch_idx+1), 100.*correct/total, correct, total))
+        progress_bar(batch_idx, len(trainloader), 'lr: %.4f | loss: %.3f | acc: %.3f%% (%d/%d)'
+                     % (optimizer.state_dict()['param_groups'][0]['lr'], train_loss/(batch_idx+1), 100.*correct/total, correct, total))
 
     if t_net and cfg.dis_feature:
         for hook in hooks:
@@ -213,15 +231,21 @@ def test(epoch):
                     teacher_outputs = t_net(inputs)
                 loss = criterion(outputs, teacher_outputs, targets)
             else:
-                loss = criterion(outputs, targets)
+                if isinstance(outputs, list):
+                    loss = sum([criterion(o, targets) / len(outputs) for o in outputs])
+                else:
+                    loss = criterion(outputs, targets)
 
             test_loss += loss.item()
-            _, predicted = outputs.max(1)
+            if isinstance(outputs, list):
+                _, predicted = (outputs[0] + outputs[1]).max(1)
+            else:
+                _, predicted = outputs.max(1)
             total += targets.size(0)
             correct += predicted.eq(targets).sum().item()
 
-            progress_bar(batch_idx, len(testloader), 'Loss: %.3f | Acc: %.3f%% (%d/%d)'
-                % (test_loss/(batch_idx+1), 100.*correct/total, correct, total))
+            progress_bar(batch_idx, len(testloader), 'loss: %.3f | acc: %.3f%% (%d/%d)'
+                         % (test_loss/(batch_idx+1), 100.*correct/total, correct, total))
 
     # Save checkpoint.
     acc = 100.*correct/total
@@ -235,8 +259,10 @@ def test(epoch):
         }
         if not os.path.exists(cfg.save_checkpoint):
             os.makedirs(cfg.save_checkpoint)
-        torch.save(state, os.path.join(cfg.save_checkpoint, "best_%s_%s_%s_%dx%d.pth" % (cfg.model, cfg.loss_name, cfg.data_name, cfg.input_size[0], cfg.input_size[1])))
+        torch.save(state, os.path.join(cfg.save_checkpoint, "best_%s_%s_%s_%dx%d.pth" % (
+            cfg.model, cfg.loss_name, cfg.data_name, cfg.input_size[0], cfg.input_size[1])))
         best_acc = acc
+
 
 for epoch in range(start_epoch, start_epoch + cfg.epoch):
     train(epoch)

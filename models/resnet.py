@@ -258,7 +258,7 @@ def _resnet(arch, block, layers, progress, num_classes=None, pretrained=None, **
 
 
 def resnet10(pretrained=None, progress=True, num_classes=None, **kwargs):
-    r"""ResNet-18 model from
+    r"""ResNet-10 model from
     `"Deep Residual Learning for Image Recognition" <https://arxiv.org/pdf/1512.03385.pdf>`_
     Args:
         pretrained (bool): If True, returns a model pre-trained on ImageNet
