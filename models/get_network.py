@@ -33,7 +33,7 @@ def build_network_by_name(name, pretrained, num_classes, **kwargs):
             num_classes=num_classes, pretrained_path=pretrained, deploy=kwargs["deploy"])
     elif name.split("-")[0] == "Conformer":
         conformer_build_func = get_conformer_func_by_name(name)
-        net = conformer_build_func(num_classes=num_classes, drop_rate=0.0, drop_path_rate=0.1)
+        net = conformer_build_func(num_classes=num_classes, drop_rate=0.0, drop_path_rate=0.1, **kwargs)
     else:
         raise Exception("暂未支持%s network, 请在此处手动添加" % name)
 

@@ -139,7 +139,7 @@ def main():
     # print(idx2classes[engine.single_image(im_path)])
 
     ####### onnxruntime #######
-    model_paths = "checkpoint/font-color/resnet10/resnet10_ce_font-color_32x96_99.836.onnx"
+    model_paths = "checkpoint/font-color/Conformer-tiny-patch16/Conformer-tiny-patch16_ce_font-color_32x96_99.428.onnx"
     im_root = "/home/wangxt/datasets/scp_data0825/test"
     out_root = "data/test_result"
     engine = OnnxInference(model_paths, [32, 96], classes)

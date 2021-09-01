@@ -10,8 +10,8 @@ import shutil
 
 
 def main():
-    model = build_network_by_name(cfg.model, None, num_classes=len(cfg.classes))
 
+    model = build_network_by_name(cfg.model, None, num_classes=len(cfg.classes), deploy=0)
     model_name = "best_%s_%s_%s_%dx%d.pth" % (cfg.model, cfg.loss_name, cfg.data_name, cfg.input_size[0], cfg.input_size[1])
     model_path = os.path.join(cfg.save_checkpoint, model_name)
     model_info = torch.load(model_path)

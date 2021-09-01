@@ -329,10 +329,11 @@ class Conformer(nn.Module):
 
     def __init__(self, patch_size=16, in_chans=3, num_classes=1000, base_channel=64, channel_ratio=4, num_med_block=0,
                  embed_dim=768, depth=12, num_heads=12, mlp_ratio=4., qkv_bias=False, qk_scale=None,
-                 drop_rate=0., attn_drop_rate=0., drop_path_rate=0.):
+                 drop_rate=0., attn_drop_rate=0., drop_path_rate=0., deploy=None):
 
         # Transformer
         super().__init__()
+        self.deploy = deploy
         self.num_classes = num_classes
         # num_features for consistency with other models
         self.num_features = self.embed_dim = embed_dim
@@ -473,8 +474,14 @@ class Conformer(nn.Module):
         # trans classification
         x_t = self.trans_norm(x_t)
         tran_cls = self.trans_cls_head(x_t[:, 0])
-
-        return [conv_cls, tran_cls]
+        if self.deploy == 0:
+            return conv_cls
+        elif self.deploy == 1:
+            return tran_cls
+        elif self.deploy == 2:
+            return conv_cls + tran_cls
+        else:
+            return [conv_cls, tran_cls]
 
 
 def Conformer_tiny_patch16(pretrained=False, **kwargs):

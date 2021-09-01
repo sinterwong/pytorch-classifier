@@ -34,7 +34,12 @@ def test(model_name, model_path, val_path, device='cuda', out_err="data/error"):
         for batch_idx, (inputs, targets, im_paths) in enumerate(testloader):
             inputs, targets = inputs.to(device), targets.to(device)
             outputs = net(inputs)
-            _, predicted = outputs.max(1)
+            if isinstance(outputs, list):
+                _, predicted = outputs[0].max(1)
+                # _, predicted = outputs[1].max(1)
+                # _, predicted = (outputs[0] + outputs[1]).max(1)
+            else:
+                _, predicted = outputs.max(1)
             total += targets.size(0)
             result = predicted.eq(targets)
             correct += result.sum().item()
@@ -60,7 +65,7 @@ def test(model_name, model_path, val_path, device='cuda', out_err="data/error"):
 
 
 if __name__ == "__main__":
-    model_name = 'resnet10'
-    model_path = 'checkpoint/font-color/resnet10/resnet10_ce_font-color_32x96_99.836.pth'
+    model_name = 'Conformer-tiny-patch16'
+    model_path = 'checkpoint/font-color/Conformer-tiny-patch16/Conformer-tiny-patch16_ce_font-color_32x96_99.428.pth'
     val_path = '/home/wangxt/datasets/scp_data0825/test'
     test(model_name, model_path, val_path)
