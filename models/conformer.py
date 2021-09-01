@@ -484,7 +484,7 @@ class Conformer(nn.Module):
             return [conv_cls, tran_cls]
 
 
-def Conformer_tiny_patch16(pretrained=False, **kwargs):
+def Conformer_tiny_patch16(pretrained=None, **kwargs):
     model = Conformer(patch_size=16, channel_ratio=1, embed_dim=384, depth=12,
                       num_heads=6, mlp_ratio=4, qkv_bias=True, **kwargs)
     if pretrained:
@@ -492,7 +492,7 @@ def Conformer_tiny_patch16(pretrained=False, **kwargs):
     return model
 
 
-def Conformer_small_patch16(pretrained=False, **kwargs):
+def Conformer_small_patch16(pretrained=None, **kwargs):
     model = Conformer(patch_size=16, channel_ratio=4, embed_dim=384, depth=12,
                       num_heads=6, mlp_ratio=4, qkv_bias=True, **kwargs)
     if pretrained:
@@ -500,7 +500,7 @@ def Conformer_small_patch16(pretrained=False, **kwargs):
     return model
 
 
-def Conformer_small_patch32(pretrained=False, **kwargs):
+def Conformer_small_patch32(pretrained=None, **kwargs):
     model = Conformer(patch_size=32, channel_ratio=4, embed_dim=384, depth=12,
                       num_heads=6, mlp_ratio=4, qkv_bias=True, **kwargs)
     if pretrained:
@@ -508,7 +508,7 @@ def Conformer_small_patch32(pretrained=False, **kwargs):
     return model
 
 
-def Conformer_base_patch16(pretrained=False, **kwargs):
+def Conformer_base_patch16(pretrained=None, **kwargs):
     model = Conformer(patch_size=16, channel_ratio=6, embed_dim=576, depth=12,
                       num_heads=9, mlp_ratio=4, qkv_bias=True, **kwargs)
     if pretrained:
@@ -517,11 +517,12 @@ def Conformer_base_patch16(pretrained=False, **kwargs):
 
 
 func_dict = {
-'Conformer-tiny-patch16': Conformer_tiny_patch16,
-'Conformer-small-patch16': Conformer_small_patch16,
-'Conformer-small-patch32': Conformer_small_patch32,
-'Conformer-base-patch16': Conformer_base_patch16
+    'Conformer-tiny-patch16': Conformer_tiny_patch16,
+    'Conformer-small-patch16': Conformer_small_patch16,
+    'Conformer-small-patch32': Conformer_small_patch32,
+    'Conformer-base-patch16': Conformer_base_patch16
 }
+
 
 def get_conformer_func_by_name(name):
     return func_dict[name]

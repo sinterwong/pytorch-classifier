@@ -7,12 +7,8 @@ from models.get_network import build_network_by_name
 from data.transform import data_transform, fast_transform, data_aug
 from data.dataset import ImageDataSet, ImageDataSet2, PairBatchSampler, ImageDatasetWrapper
 import argparse
-import torchvision.transforms as T
-import torchvision
 import torch.backends.cudnn as cudnn
-import torch.nn.functional as F
 import torch.optim as optim
-import torch.nn as nn
 import torch
 import os
 import config as cfg
@@ -65,7 +61,14 @@ else:
 
 # Model
 print('==> Building model..')
-net = build_network_by_name(cfg.model, cfg.pretrained, len(cfg.classes), deploy=False)
+if cfg.model.split("-")[0] == "RepVGG":
+    net = build_network_by_name(
+        cfg.model, cfg.pretrained, len(cfg.classes), deploy=False)
+elif cfg.model.split("-")[0] == "Conformer":
+    net = build_network_by_name(cfg.model, cfg.pretrained, len(
+        cfg.classes), drop_rate=cfg.drop_rate, drop_path_rate=cfg.drop_path_rate)
+else:
+    net = build_network_by_name(cfg.model, cfg.pretrained, len(cfg.classes))
 
 net = net.to(device)
 if device == 'cuda' and len(cfg.device_ids) > 1:
@@ -75,7 +78,15 @@ if device == 'cuda' and len(cfg.device_ids) > 1:
 # Knowledge Distillation
 if cfg.teacher:
     print('==> Building teacher model..')
-    t_net = build_network_by_name(cfg.teacher, None, len(cfg.classes), deploy=True)
+    if cfg.model.split("-")[0] == "RepVGG":
+        t_net = build_network_by_name(
+            cfg.teacher, cfg.pretrained, len(cfg.classes), deploy=True)
+    elif cfg.model.split("-")[0] == "Conformer":
+        t_net = build_network_by_name(cfg.teacher, cfg.pretrained, len(
+            cfg.classes), drop_rate=cfg.drop_rate, drop_path_rate=cfg.drop_path_rate, deploy=cfg.conformer_output_type)
+    else:
+        t_net = build_network_by_name(
+            cfg.teacher, cfg.pretrained, len(cfg.classes))
 else:
     t_net = None
 
@@ -190,7 +201,8 @@ def train(epoch):
                          (1 - cfg.alpha) * criterion(outputs, targets))
             else:
                 if isinstance(outputs, list):
-                    loss += sum([criterion(o, targets) / len(outputs) for o in outputs])
+                    loss += sum([criterion(o, targets) / len(outputs)
+                                for o in outputs])
                 else:
                     loss += criterion(outputs, targets)
 
@@ -232,7 +244,8 @@ def test(epoch):
                 loss = criterion(outputs, teacher_outputs, targets)
             else:
                 if isinstance(outputs, list):
-                    loss = sum([criterion(o, targets) / len(outputs) for o in outputs])
+                    loss = sum([criterion(o, targets) / len(outputs)
+                               for o in outputs])
                 else:
                     loss = criterion(outputs, targets)
 

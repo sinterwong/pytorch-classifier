@@ -318,3 +318,13 @@ def se_resnet152(pretrained=None, progress=True, num_classes=None, **kwargs):
     """
     return _resnet('se_resnet152', SEBottleneck, [3, 8, 36, 3], progress, num_classes=num_classes, pretrained=pretrained, **kwargs)
 
+
+func_dict = {
+'seresnet-10': se_resnet10,
+'seresnet-18': se_resnet18,
+'seresnet-34': se_resnet34,
+'seresnet-50': se_resnet50
+}
+
+def get_seresnet_func_by_name(name):
+    return func_dict[name]

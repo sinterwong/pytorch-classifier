@@ -316,3 +316,12 @@ def resnet152(pretrained=None, progress=True, num_classes=None, **kwargs):
     """
     return _resnet('resnet152', Bottleneck, [3, 8, 36, 3], progress, num_classes=num_classes, pretrained=pretrained, **kwargs)
 
+func_dict = {
+'resnet-10': resnet10,
+'resnet-18': resnet18,
+'resnet-34': resnet34,
+'resnet-50': resnet50
+}
+
+def get_resnet_func_by_name(name):
+    return func_dict[name]

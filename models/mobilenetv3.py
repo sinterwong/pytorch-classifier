@@ -30,8 +30,10 @@ class Hardswish(nn.Module):  # export-friendly version of nn.Hardswish()
         # return x * F.hardsigmoid(x)  # for torchscript and CoreML
         return x * F.hardtanh(x + 3, 0., 6.) / 6.  # for torchscript, CoreML and ONNX
 
+
 def hardsigmoid(x):
     return torch.clip(torch.minimum((x + 2) / 4, torch.tensor(1).to(x.device)), torch.tensor(0).to(x.device))
+
 
 def _make_divisible(v: float, divisor: int, min_value: Optional[int] = None) -> int:
     """
@@ -331,7 +333,7 @@ def _mobilenet_v3_model(
     return model
 
 
-def mobilenet_v3_large(pretrained: bool = False, num_classes: int = 1000, progress: bool = True, **kwargs: Any) -> MobileNetV3:
+def mobilenet_v3_large(pretrained: bool = None, num_classes: int = 1000, progress: bool = True, **kwargs: Any) -> MobileNetV3:
     """
     Constructs a large MobileNetV3 architecture from
     `"Searching for MobileNetV3" <https://arxiv.org/abs/1905.02244>`_.
@@ -344,7 +346,7 @@ def mobilenet_v3_large(pretrained: bool = False, num_classes: int = 1000, progre
     return _mobilenet_v3_model(arch, inverted_residual_setting, last_channel, pretrained, progress, num_classes, **kwargs)
 
 
-def mobilenet_v3_small(pretrained: bool = False, num_classes: int = 1000, progress: bool = True, **kwargs: Any) -> MobileNetV3:
+def mobilenet_v3_small(pretrained: bool = None, num_classes: int = 1000, progress: bool = True, **kwargs: Any) -> MobileNetV3:
     """
     Constructs a small MobileNetV3 architecture from
     `"Searching for MobileNetV3" <https://arxiv.org/abs/1905.02244>`_.
@@ -355,6 +357,16 @@ def mobilenet_v3_small(pretrained: bool = False, num_classes: int = 1000, progre
     arch = "mobilenet_v3_small"
     inverted_residual_setting, last_channel = _mobilenet_v3_conf(arch, kwargs)
     return _mobilenet_v3_model(arch, inverted_residual_setting, last_channel, pretrained, progress, num_classes, **kwargs)
+
+
+func_dict = {
+    'mobilenetv3-small': mobilenet_v3_small,
+    'mobilenetv3-large': mobilenet_v3_large,
+}
+
+
+def get_mobilenetv3_func_by_name(name):
+    return func_dict[name]
 
 
 if __name__ == "__main__":

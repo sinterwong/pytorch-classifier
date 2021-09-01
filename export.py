@@ -10,8 +10,16 @@ import shutil
 
 
 def main():
+    # 初始化模型
+    if cfg.model.split("-")[0] == "RepVGG":
+        model = build_network_by_name(
+            cfg.model, cfg.pretrained, len(cfg.classes), deploy=False)
+    elif cfg.model.split("-")[0] == "Conformer":
+        model = build_network_by_name(cfg.model, cfg.pretrained, len(
+            cfg.classes), drop_rate=cfg.drop_rate, drop_path_rate=cfg.drop_path_rate, deploy=cfg.conformer_output_type)
+    else:
+        model = build_network_by_name(cfg.model, cfg.pretrained, len(cfg.classes))
 
-    model = build_network_by_name(cfg.model, None, num_classes=len(cfg.classes), deploy=0)
     model_name = "best_%s_%s_%s_%dx%d.pth" % (cfg.model, cfg.loss_name, cfg.data_name, cfg.input_size[0], cfg.input_size[1])
     model_path = os.path.join(cfg.save_checkpoint, model_name)
     model_info = torch.load(model_path)
