@@ -140,8 +140,6 @@ if cfg.resume:
     # lr_scheduler = checkpoint['lr_scheduler']
 
 # Training
-
-
 def train(epoch):
     print('\nEpoch: %d' % epoch)
     net.train()
