@@ -16,7 +16,6 @@ pad = int(input_size[0] * 0.1)
 
 # Note: the category name is the same as the file directory
 data_type = {
-    "font-color": ("black", "white"),
     "hand14c": ('000-one', '001-five', '002-fist', '003-ok', '004-heartSingle', '005-yearh', '006-three',
                 '007-four', '008-six', '009-Iloveyou', '010-gun', '011-thumbUp', '012-nine', '013-pink'),
     "hand3c": ('0', 'close', 'open'),
@@ -59,7 +58,7 @@ scale = 10.
 #########################
 ######### model #########
 #########################
-model = "Conformer-tiny-patch16"
+model = "resnet-10"
 pretrained = None
 resume = None
 # for conformer. Note that Distillation is not currently supported by Conformer

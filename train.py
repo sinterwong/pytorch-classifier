@@ -77,11 +77,11 @@ if device == 'cuda' and len(cfg.device_ids) > 1:
 
 # Knowledge Distillation
 if cfg.teacher:
-    print('==> Building teacher model..')
-    if cfg.model.split("-")[0] == "RepVGG":
+    print('==> Building teacher model {}..'.format(cfg.teacher))
+    if cfg.teacher.split("-")[0] == "RepVGG":
         t_net = build_network_by_name(
             cfg.teacher, cfg.pretrained, len(cfg.classes), deploy=True)
-    elif cfg.model.split("-")[0] == "Conformer":
+    elif cfg.teacher.split("-")[0] == "Conformer":
         t_net = build_network_by_name(cfg.teacher, cfg.pretrained, len(
             cfg.classes), drop_rate=cfg.drop_rate, drop_path_rate=cfg.drop_path_rate, deploy=cfg.conformer_output_type)
     else:
@@ -235,17 +235,8 @@ def test(epoch):
         for batch_idx, (inputs, targets, _) in enumerate(testloader):
             inputs, targets = inputs.to(device), targets.to(device)
             outputs = net(inputs)
-
-            if t_net:
-                with torch.no_grad():
-                    teacher_outputs = t_net(inputs)
-                loss = criterion(outputs, teacher_outputs, targets)
-            else:
-                if isinstance(outputs, list):
-                    loss = sum([criterion(o, targets) / len(outputs)
-                               for o in outputs])
-                else:
-                    loss = criterion(outputs, targets)
+            
+            loss = criterion(outputs, targets)
 
             test_loss += loss.item()
             if isinstance(outputs, list):
